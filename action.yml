@@ -85,10 +85,11 @@ runs:
             }
 
             # Output the markdown
-            $markdown
+            $mdOutput = Join-Path $TrxPath TRXOutput.md
+            $markdown | Set-Content $mdOutput
 
             # Set the output variable
-            echo "output=$markdown" >> $env:GITHUB_OUTPUT
+            echo "output=$mdOutput" >> $env:GITHUB_OUTPUT
         } catch {
             Write-Error "Error processing TRX file: $_"
         }
