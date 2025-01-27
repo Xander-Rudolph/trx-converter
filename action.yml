@@ -9,12 +9,17 @@ inputs:
     description: "Path to search for trx files"
     required: false
     default: ${{ github.workspace }}
-
+outputs:
+  output:
+    description: "Is release branch"
+    value: ${{ steps.output.outputs.output }}    
+    
 runs:
   using: composite
   steps:
     - name: Consolidate Report
       shell: pwsh
+      id: output
       run: |
         $TrxPath = ${{ inputs.trxDirectory }}
 
