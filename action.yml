@@ -1,0 +1,88 @@
+vname: 'Convert TRX to summary'
+author: 'xander-rudolph'
+branding:
+  icon: 'git-pull-request'
+  color: 'green'
+description: 'Checks a directory for any vulnerabilities and adds a step summary'
+inputs:
+  trxDirectory:
+    description: "Path to search for trx files"
+    required: false
+    default: ${{ github.workspace }}
+
+runs:
+  using: composite
+  steps:
+    - name: Consolidate Report
+      shell: pwsh
+      run: |
+        $TrxPath = ${{ inputs.trxDirectory }}
+
+        # Function to convert numbers to percentages
+        function Get-Percentage {
+            param($part, $whole)
+            if ($whole -eq 0) { return "0%" }
+            return "$([math]::Round(($part / $whole) * 100, 2))%"
+        }
+        
+        try {
+            # Load and parse the TRX file
+            $TrxPath=(Get-ChildItem $TrxPath -Filter "*.trx").FullName
+            [xml]$trx = Get-Content -Path $TrxPath
+        
+            # Get the counts
+            $total = $trx.TestRun.ResultSummary.Counters.Total
+            $passed = $trx.TestRun.ResultSummary.Counters.Passed
+            $failed = $trx.TestRun.ResultSummary.Counters.Failed
+            $errors = $trx.TestRun.ResultSummary.Counters.Error
+            $timeout = $trx.TestRun.ResultSummary.Counters.Timeout
+            $aborted = $trx.TestRun.ResultSummary.Counters.Aborted
+            $inconclusive = $trx.TestRun.ResultSummary.Counters.Inconclusive
+            $passedPercentage = Get-Percentage $passed $total
+            $failedPercentage = Get-Percentage $failed $total
+        
+            # Create markdown output with emojis
+            $markdown = @"
+        # 🎯 Test Results Summary
+        
+        ## 📊 Overview
+        - 🔢 **Total Tests**: $total
+        - ✅ **Passed**: $passed ($passedPercentage)
+        - ❌ **Failed**: $failed ($failedPercentage)
+        
+        ## 🔍 Detailed Results
+        - 🚨 **Errors**: $errors
+        - ⏰ **Timeouts**: $timeout
+        - 🛑 **Aborted**: $aborted
+        - ❓ **Inconclusive**: $inconclusive
+        
+        ## 🔄 Test Run Details
+        - 🏁 **Start Time**: $($trx.TestRun.Times.start)
+        - 🏆 **End Time**: $($trx.TestRun.Times.finish)
+        - 👤 **Run User**: $($trx.TestRun.RunUser)
+        "@
+        
+            # Add conditional summary based on results
+            if ($failed -eq 0 -and $errors -eq 0) {
+                $markdown += @"
+          ## 🌟 Summary
+          All tests passed successfully! Great job! 🎉
+          "@
+              }
+              elseif ($failed -gt 0 -or $errors -gt 0) {
+                  $markdown += @"
+          ## 💡 Summary
+          Some tests need attention. Review the failed/error cases for more details.
+          "@
+              }
+          
+              # Output the markdown
+              $markdown
+          
+              # Save
+              # $markdown | Out-File "TRXSummary.md"
+              echo "output=$markdown" >> $env:GITHUB_OUTPUT
+          }
+          catch {
+              Write-Error "Error processing TRX file: $_"
+          }
