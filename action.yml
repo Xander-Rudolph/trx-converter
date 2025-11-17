@@ -23,7 +23,9 @@ runs:
       shell: pwsh
       id: output
       run: |
-        $TrxPath = "${{ inputs.trxDirectory }}"
+        $TrxRawPath = "${{ inputs.trxDirectory }}"
+        $TrxPath = Get-ChildItem $TrxRawPath
+        If(-not (Test-Path $TrxPath)){Write-Error "Unable to find $($TrxPath.FullName)"}
 
         # Function to convert numbers to percentages
         function Get-Percentage {
