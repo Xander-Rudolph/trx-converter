@@ -22,9 +22,26 @@ runs:
     - name: Consolidate Report
       shell: pwsh
       id: output
+      env:
+        TRX_DIRECTORY: ${{ inputs.trxDirectory }}
       run: |
-        $TrxPath = Get-Item "${{ inputs.trxDirectory }}"
-        If(-not (Test-Path $TrxPath)){Write-Error "Unable to find directory: $($TrxPath.FullName)"}
+        $ErrorActionPreference = 'Stop'
+
+        # Normalize the input path: trim whitespace/quotes, unify mixed / and \
+        # separators to the platform's separator, and drop any trailing separator.
+        $rawPath = $env:TRX_DIRECTORY
+        if ([string]::IsNullOrWhiteSpace($rawPath)) {
+            Write-Error "trxDirectory input is empty"
+            exit 1
+        }
+        $sep = [IO.Path]::DirectorySeparatorChar
+        $normalized = $rawPath.Trim().Trim('"').Trim("'") -replace '[\\/]', $sep
+        if ($normalized.Length -gt 1) { $normalized = $normalized.TrimEnd($sep) }
+        if (-not (Test-Path -LiteralPath $normalized -PathType Container)) {
+            Write-Error "Unable to find directory: $normalized"
+            exit 1
+        }
+        $TrxPath = Get-Item -LiteralPath $normalized
 
         # Function to convert numbers to percentages
         function Get-Percentage {
@@ -35,8 +52,12 @@ runs:
 
         try {
             # Load and parse the TRX file
-            $TrxFile = (Get-ChildItem $TrxPath -Filter "*.trx").FullName
-            [xml]$trx = Get-Content -Path $TrxFile
+            $TrxFile = (Get-ChildItem -LiteralPath $TrxPath -Filter "*.trx" | Select-Object -First 1).FullName
+            if (-not $TrxFile) {
+                Write-Error "No .trx files found in: $($TrxPath.FullName)"
+                exit 1
+            }
+            [xml]$trx = Get-Content -LiteralPath $TrxFile
 
             # Get the counts
             $total = $trx.TestRun.ResultSummary.Counters.Total
